@@ -7,9 +7,31 @@
     body {
       margin: 0;
       font-family: sans-serif;
+      background: #f0f0f0;
       display: flex;
       flex-direction: column;
       height: 100vh;
+    }
+
+    #info-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.9);
+      padding: 10px 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+      z-index: 10;
+    }
+
+    #waiting-banner {
+      text-align: center;
+      padding: 10px;
+      background-color: #333;
+      color: white;
+      margin: 5px auto;
+      border-radius: 6px;
+      max-width: 400px;
     }
 
     #video-container {
@@ -18,64 +40,62 @@
       flex-wrap: wrap;
       justify-content: center;
       align-items: center;
-      background: #f0f0f0;
-      position: relative;
+      gap: 10px;
+      padding: 20px;
     }
 
     .video-box {
       width: 45%;
       background: black;
-      margin: 1%;
       border-radius: 8px;
-      overflow: hidden;
-      min-height: 240px;
+      position: relative;
+    }
+
+    video {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
     }
 
     #controls {
-      padding: 10px;
       text-align: center;
-      background: #eee;
-    }
-
-    #waiting-message {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.7);
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 6px;
-      display: none;
-      font-size: 14px;
+      padding: 15px;
     }
 
     button {
-      padding: 8px 14px;
-      margin: 0 8px;
+      margin: 0 10px;
+      padding: 10px 20px;
+      border-radius: 5px;
       border: none;
-      border-radius: 4px;
-      background: #5c6bc0;
+      background: #4b6cb7;
       color: white;
-      font-weight: bold;
       cursor: pointer;
+      font-weight: bold;
     }
 
     button:hover {
-      background: #3949ab;
+      background: #395591;
     }
   </style>
 </head>
 <body>
+
+  <div id="info-panel" style="display:none;">
+    <div><strong>Name:</strong> <span id="pt-name"></span></div>
+    <div><strong>NRIC:</strong> <span id="pt-nric"></span></div>
+    <div><strong>Gender:</strong> <span id="pt-gender"></span></div>
+  </div>
+
+  <div id="waiting-banner">Waiting for other participant to join...</div>
+
   <div id="video-container">
-    <div id="waiting-message">Waiting for other participant to join...</div>
-    <div id="local-stream" class="video-box"></div>
-    <div id="remote-streams" class="video-box"></div>
+    <div class="video-box" id="local-stream"></div>
+    <div class="video-box" id="remote-streams"></div>
   </div>
 
   <div id="controls">
-    <button id="toggle-mic">Mute Mic</button>
-    <button id="toggle-cam">Turn Off Camera</button>
+    <button onclick="toggleMic()">Mute Mic</button>
+    <button onclick="toggleCamera()">Turn Off Camera</button>
   </div>
 
   <script>
@@ -84,78 +104,74 @@
     const channel = urlParams.get('channel') || 'test';
     const uid = urlParams.get('user') || null;
 
+    // Parse JSON info if available
+    const name = urlParams.get('name');
+    const nric = urlParams.get('nric');
+    const gender = urlParams.get('gender');
+
+    if (name || nric || gender) {
+      document.getElementById('pt-name').textContent = name || '-';
+      document.getElementById('pt-nric').textContent = nric || '-';
+      document.getElementById('pt-gender').textContent = gender || '-';
+      document.getElementById('info-panel').style.display = 'block';
+    }
+
     const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-    let micTrack, camTrack;
-    let isCamOn = true;
-    let isMicOn = true;
+    let localTracks = { audioTrack: null, videoTrack: null };
 
     async function startCall() {
       await client.join(appId, channel, null, uid);
+      [localTracks.audioTrack, localTracks.videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
 
-      [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-
-      const localContainer = document.getElementById('local-stream');
+      const localContainer = document.createElement('div');
       localContainer.id = uid || 'local-user';
-      camTrack.play(localContainer);
-
-      await client.publish([micTrack, camTrack]);
-
-      document.getElementById('waiting-message').style.display = 'block';
+      document.getElementById('local-stream').appendChild(localContainer);
+      await localTracks.videoTrack.play(localContainer);
+      await client.publish(Object.values(localTracks));
 
       client.on('user-published', async (user, mediaType) => {
         await client.subscribe(user, mediaType);
-
-        let remoteContainer = document.getElementById(`user-${user.uid}`);
-        if (!remoteContainer) {
-          remoteContainer = document.createElement('div');
-          remoteContainer.id = `user-${user.uid}`;
-          remoteContainer.className = 'video-box';
-          document.getElementById('remote-streams').appendChild(remoteContainer);
-        }
-
         if (mediaType === 'video') {
+          document.getElementById('waiting-banner').style.display = 'none';
+          const remoteContainer = document.createElement('div');
+          remoteContainer.id = `user-${user.uid}`;
+          document.getElementById('remote-streams').appendChild(remoteContainer);
           user.videoTrack.play(remoteContainer);
         }
         if (mediaType === 'audio') {
           user.audioTrack.play();
         }
-
-        document.getElementById('waiting-message').style.display = 'none';
       });
 
-      client.on('user-unpublished', (user) => {
+      client.on('user-unpublished', user => {
         const remote = document.getElementById(`user-${user.uid}`);
         if (remote) remote.remove();
-        document.getElementById('waiting-message').style.display = 'block';
       });
     }
 
-    document.getElementById('toggle-mic').addEventListener('click', () => {
-      if (isMicOn) {
-        micTrack.setEnabled(false);
-        isMicOn = false;
-        document.getElementById('toggle-mic').textContent = 'Unmute Mic';
+    function toggleMic() {
+      if (!localTracks.audioTrack) return;
+      const muted = localTracks.audioTrack.muted;
+      if (muted) {
+        localTracks.audioTrack.setMuted(false);
+        event.target.innerText = 'Mute Mic';
       } else {
-        micTrack.setEnabled(true);
-        isMicOn = true;
-        document.getElementById('toggle-mic').textContent = 'Mute Mic';
+        localTracks.audioTrack.setMuted(true);
+        event.target.innerText = 'Unmute Mic';
       }
-    });
+    }
 
-    document.getElementById('toggle-cam').addEventListener('click', () => {
-      const container = document.getElementById('local-stream');
-      if (isCamOn) {
-        camTrack.setEnabled(false);
-        isCamOn = false;
-        container.innerHTML = ''; // clear video
-        document.getElementById('toggle-cam').textContent = 'Turn On Camera';
+    function toggleCamera() {
+      if (!localTracks.videoTrack) return;
+      const muted = localTracks.videoTrack.muted;
+      if (muted) {
+        localTracks.videoTrack.setMuted(false);
+        event.target.innerText = 'Turn Off Camera';
       } else {
-        camTrack.setEnabled(true);
-        camTrack.play(container); // rebind to container
-        isCamOn = true;
-        document.getElementById('toggle-cam').textContent = 'Turn Off Camera';
+        localTracks.videoTrack.setMuted(true);
+        event.target.innerText = 'Turn On Camera';
       }
-    });
+    }
 
     startCall();
   </script>
