@@ -28,6 +28,7 @@
       margin: 1%;
       border-radius: 8px;
       overflow: hidden;
+      min-height: 240px;
     }
 
     #controls {
@@ -85,15 +86,17 @@
 
     const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
     let micTrack, camTrack;
+    let isCamOn = true;
+    let isMicOn = true;
 
     async function startCall() {
       await client.join(appId, channel, null, uid);
+
       [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
 
-      const localContainer = document.createElement('div');
+      const localContainer = document.getElementById('local-stream');
       localContainer.id = uid || 'local-user';
-      document.getElementById('local-stream').appendChild(localContainer);
-      camTrack.play(localContainer.id);
+      camTrack.play(localContainer);
 
       await client.publish([micTrack, camTrack]);
 
@@ -117,7 +120,6 @@
           user.audioTrack.play();
         }
 
-        // Hide waiting message
         document.getElementById('waiting-message').style.display = 'none';
       });
 
@@ -129,22 +131,29 @@
     }
 
     document.getElementById('toggle-mic').addEventListener('click', () => {
-      if (micTrack.muted) {
-        micTrack.setEnabled(true);
-        document.getElementById('toggle-mic').textContent = 'Mute Mic';
-      } else {
+      if (isMicOn) {
         micTrack.setEnabled(false);
+        isMicOn = false;
         document.getElementById('toggle-mic').textContent = 'Unmute Mic';
+      } else {
+        micTrack.setEnabled(true);
+        isMicOn = true;
+        document.getElementById('toggle-mic').textContent = 'Mute Mic';
       }
     });
 
     document.getElementById('toggle-cam').addEventListener('click', () => {
-      if (camTrack.muted) {
-        camTrack.setEnabled(true);
-        document.getElementById('toggle-cam').textContent = 'Turn Off Camera';
-      } else {
+      const container = document.getElementById('local-stream');
+      if (isCamOn) {
         camTrack.setEnabled(false);
+        isCamOn = false;
+        container.innerHTML = ''; // clear video
         document.getElementById('toggle-cam').textContent = 'Turn On Camera';
+      } else {
+        camTrack.setEnabled(true);
+        camTrack.play(container); // rebind to container
+        isCamOn = true;
+        document.getElementById('toggle-cam').textContent = 'Turn Off Camera';
       }
     });
 
