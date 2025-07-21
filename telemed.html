@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SAH Video Call</title>
+  <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
+  <style>
+    body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+    #video-container { flex: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; background: #f0f0f0; }
+    video { width: 45%; height: auto; margin: 1%; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="video-container">
+    <div id="local-stream"></div>
+    <div id="remote-streams"></div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const appId = '9215eef13c1f4b8b88b20e217e027462'; // Replace with your actual App ID
+    const channel = urlParams.get('channel') || 'test';
+    const uid = urlParams.get('user') || null;
+
+    const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+
+    async function startCall() {
+      await client.join(appId, channel, null, uid);
+
+      const localStream = await AgoraRTC.createMicrophoneAndCameraTracks();
+
+      const localContainer = document.createElement('div');
+      localContainer.id = uid || 'local-user';
+      document.getElementById('local-stream').appendChild(localContainer);
+      localStream[1].play(localContainer.id);
+
+      await client.publish(localStream);
+
+      client.on('user-published', async (user, mediaType) => {
+        await client.subscribe(user, mediaType);
+        if (mediaType === 'video') {
+          const remoteContainer = document.createElement('div');
+          remoteContainer.id = `user-${user.uid}`;
+          document.getElementById('remote-streams').appendChild(remoteContainer);
+          user.videoTrack.play(remoteContainer);
+        }
+      });
+
+      client.on('user-unpublished', user => {
+        const remote = document.getElementById(`user-${user.uid}`);
+        if (remote) remote.remove();
+      });
+    }
+
+    startCall();
+  </script>
+</body>
+</html>
