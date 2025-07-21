@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SAH Call Link Generator</title>
+  <script>
+    function sha256(input) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(input);
+      return crypto.subtle.digest('SHA-256', data).then(hash => {
+        return Array.from(new Uint8Array(hash))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+      });
+    }
+
+    async function generateLink() {
+      const rawJson = document.getElementById("input-json").value;
+      try {
+        const data = JSON.parse(rawJson);
+        const rawString = `${data.name}${data.dob}${data.address}`;
+        const hash = await sha256(rawString);
+        const channel = "sah_" + hash.substring(0, 10);
+        const link = `https://chuanyeong15.github.io/agora-call/telemed.html?channel=${channel}&user=doctor`;
+        document.getElementById("output-link").innerHTML = `<a href="${link}" target="_blank">${link}</a>`;
+      } catch (e) {
+        alert("Invalid JSON format");
+      }
+    }
+  </script>
+</head>
+<body>
+  <h2>SAH → Video Call Link Generator</h2>
+  <p>Paste patient JSON:</p>
+  <textarea id="input-json" rows="10" cols="60">
+{
+  "name": "Tan Chuan Yeong",
+  "age": 32,
+  "dob": "1993-01-15",
+  "address": "65 Circuit Room #09-377 S370065",
+  "gender": "male",
+  "note": "SAH"
+}
+  </textarea><br><br>
+  <button onclick="generateLink()">Generate Doctor Link</button>
+  <p><strong>Doctor Join Link:</strong></p>
+  <div id="output-link" style="font-family: monospace;"></div>
+</body>
+</html>
