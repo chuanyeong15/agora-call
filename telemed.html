@@ -6,11 +6,12 @@
   <style>
     body {
       margin: 0;
+      font-family: sans-serif;
       display: flex;
       flex-direction: column;
       height: 100vh;
-      font-family: sans-serif;
     }
+
     #video-container {
       flex: 1;
       display: flex;
@@ -18,13 +19,9 @@
       justify-content: center;
       align-items: center;
       background: #f0f0f0;
+      position: relative;
     }
-    video {
-      width: 45%;
-      height: auto;
-      margin: 1%;
-      border-radius: 8px;
-    }
+
     .video-box {
       width: 45%;
       background: black;
@@ -32,12 +29,52 @@
       border-radius: 8px;
       overflow: hidden;
     }
+
+    #controls {
+      padding: 10px;
+      text-align: center;
+      background: #eee;
+    }
+
+    #waiting-message {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      display: none;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 8px 14px;
+      margin: 0 8px;
+      border: none;
+      border-radius: 4px;
+      background: #5c6bc0;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #3949ab;
+    }
   </style>
 </head>
 <body>
   <div id="video-container">
+    <div id="waiting-message">Waiting for other participant to join...</div>
     <div id="local-stream" class="video-box"></div>
     <div id="remote-streams" class="video-box"></div>
+  </div>
+
+  <div id="controls">
+    <button id="toggle-mic">Mute Mic</button>
+    <button id="toggle-cam">Turn Off Camera</button>
   </div>
 
   <script>
@@ -47,21 +84,24 @@
     const uid = urlParams.get('user') || null;
 
     const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+    let micTrack, camTrack;
 
     async function startCall() {
       await client.join(appId, channel, null, uid);
-
-      const [microphoneTrack, cameraTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+      [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
 
       const localContainer = document.createElement('div');
       localContainer.id = uid || 'local-user';
       document.getElementById('local-stream').appendChild(localContainer);
-      cameraTrack.play(localContainer.id);
+      camTrack.play(localContainer.id);
 
-      await client.publish([microphoneTrack, cameraTrack]);
+      await client.publish([micTrack, camTrack]);
+
+      document.getElementById('waiting-message').style.display = 'block';
 
       client.on('user-published', async (user, mediaType) => {
         await client.subscribe(user, mediaType);
+
         let remoteContainer = document.getElementById(`user-${user.uid}`);
         if (!remoteContainer) {
           remoteContainer = document.createElement('div');
@@ -74,18 +114,41 @@
           user.videoTrack.play(remoteContainer);
         }
         if (mediaType === 'audio') {
-          user.audioTrack.play(); // Audio doesn’t need a DOM element
+          user.audioTrack.play();
         }
+
+        // Hide waiting message
+        document.getElementById('waiting-message').style.display = 'none';
       });
 
       client.on('user-unpublished', (user) => {
         const remote = document.getElementById(`user-${user.uid}`);
         if (remote) remote.remove();
+        document.getElementById('waiting-message').style.display = 'block';
       });
     }
+
+    document.getElementById('toggle-mic').addEventListener('click', () => {
+      if (micTrack.muted) {
+        micTrack.setEnabled(true);
+        document.getElementById('toggle-mic').textContent = 'Mute Mic';
+      } else {
+        micTrack.setEnabled(false);
+        document.getElementById('toggle-mic').textContent = 'Unmute Mic';
+      }
+    });
+
+    document.getElementById('toggle-cam').addEventListener('click', () => {
+      if (camTrack.muted) {
+        camTrack.setEnabled(true);
+        document.getElementById('toggle-cam').textContent = 'Turn Off Camera';
+      } else {
+        camTrack.setEnabled(false);
+        document.getElementById('toggle-cam').textContent = 'Turn On Camera';
+      }
+    });
 
     startCall();
   </script>
 </body>
 </html>
-
