@@ -46,7 +46,7 @@
   <div id="video-container">
     <div id="waiting-message">Waiting for other participant to join...</div>
     <div id="local-stream" class="video-box"></div>
-    <div id="remote-streams" class="video-box"></div>
+    <div id="remote-streams"></div>
   </div>
 
   <script>
@@ -62,11 +62,8 @@
 
       const localStream = await AgoraRTC.createMicrophoneAndCameraTracks();
 
-      const localContainer = document.createElement('div');
-      localContainer.id = uid || 'local-user';
-      localContainer.className = 'video-box';
-      document.getElementById('local-stream').appendChild(localContainer);
-      localStream[1].play(localContainer.id);
+      const localBox = document.getElementById('local-stream');
+      localStream[1].play(localBox);
 
       await client.publish(localStream);
 
@@ -76,7 +73,6 @@
           const remoteContainer = document.createElement('div');
           remoteContainer.id = `user-${user.uid}`;
           remoteContainer.className = 'video-box';
-          document.getElementById('remote-streams').innerHTML = '';
           document.getElementById('remote-streams').appendChild(remoteContainer);
           user.videoTrack.play(remoteContainer);
 
@@ -90,7 +86,7 @@
         const remote = document.getElementById(`user-${user.uid}`);
         if (remote) remote.remove();
 
-        // Show waiting message again if no remote users
+        // Show waiting message again
         const waitingMsg = document.getElementById('waiting-message');
         if (waitingMsg) waitingMsg.style.display = 'block';
       });
