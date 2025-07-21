@@ -6,10 +6,10 @@
   <style>
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
       display: flex;
       flex-direction: column;
       height: 100vh;
+      font-family: sans-serif;
     }
     #video-container {
       flex: 1;
@@ -18,35 +18,26 @@
       justify-content: center;
       align-items: center;
       background: #f0f0f0;
-      position: relative;
+    }
+    video {
+      width: 45%;
+      height: auto;
+      margin: 1%;
+      border-radius: 8px;
     }
     .video-box {
       width: 45%;
-      height: 300px;
-      background: #000;
+      background: black;
       margin: 1%;
       border-radius: 8px;
-      position: relative;
-    }
-    #waiting-message {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.6);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 4px;
-      font-size: 14px;
-      z-index: 10;
+      overflow: hidden;
     }
   </style>
 </head>
 <body>
   <div id="video-container">
-    <div id="waiting-message">Waiting for other participant to join...</div>
     <div id="local-stream" class="video-box"></div>
-    <div id="remote-streams"></div>
+    <div id="remote-streams" class="video-box"></div>
   </div>
 
   <script>
@@ -60,35 +51,36 @@
     async function startCall() {
       await client.join(appId, channel, null, uid);
 
-      const localStream = await AgoraRTC.createMicrophoneAndCameraTracks();
+      const [microphoneTrack, cameraTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
 
-      const localBox = document.getElementById('local-stream');
-      localStream[1].play(localBox);
+      const localContainer = document.createElement('div');
+      localContainer.id = uid || 'local-user';
+      document.getElementById('local-stream').appendChild(localContainer);
+      cameraTrack.play(localContainer.id);
 
-      await client.publish(localStream);
+      await client.publish([microphoneTrack, cameraTrack]);
 
       client.on('user-published', async (user, mediaType) => {
         await client.subscribe(user, mediaType);
-        if (mediaType === 'video') {
-          const remoteContainer = document.createElement('div');
+        let remoteContainer = document.getElementById(`user-${user.uid}`);
+        if (!remoteContainer) {
+          remoteContainer = document.createElement('div');
           remoteContainer.id = `user-${user.uid}`;
           remoteContainer.className = 'video-box';
           document.getElementById('remote-streams').appendChild(remoteContainer);
-          user.videoTrack.play(remoteContainer);
+        }
 
-          // Hide waiting message
-          const waitingMsg = document.getElementById('waiting-message');
-          if (waitingMsg) waitingMsg.style.display = 'none';
+        if (mediaType === 'video') {
+          user.videoTrack.play(remoteContainer);
+        }
+        if (mediaType === 'audio') {
+          user.audioTrack.play(); // Audio doesn’t need a DOM element
         }
       });
 
-      client.on('user-unpublished', user => {
+      client.on('user-unpublished', (user) => {
         const remote = document.getElementById(`user-${user.uid}`);
         if (remote) remote.remove();
-
-        // Show waiting message again
-        const waitingMsg = document.getElementById('waiting-message');
-        if (waitingMsg) waitingMsg.style.display = 'block';
       });
     }
 
@@ -96,3 +88,4 @@
   </script>
 </body>
 </html>
+
