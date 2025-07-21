@@ -1,102 +1,84 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>SAH Video Call</title>
   <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
   <style>
-    body { margin: 0; font-family: sans-serif; }
-    #info-box {
-      position: absolute; top: 10px; left: 10px;
-      background: #fff; padding: 10px; border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      z-index: 10;
-    }
-    #video-wrapper {
-      display: flex; flex-wrap: wrap;
-      justify-content: center; align-items: center;
-      height: 100vh; padding-top: 80px;
-      background: #f0f0f0;
-    }
-    #local-player, #remote-player {
-      width: 45%; min-width: 300px; height: 240px;
-      background: #ccc; margin: 10px; border-radius: 8px;
-    }
-    #controls {
-      text-align: center; margin-top: 10px;
-    }
+    body { margin:0; font-family:sans-serif; background:#f0f0f0; }
+    #info { position:absolute; top:10px; left:10px; background:#fff; padding:8px; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.2); }
+    #videos { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; height:100vh; padding-top:60px; }
+    .player { width:45%; min-width:300px; height:240px; background:#333; margin:10px; border-radius:8px; overflow:hidden; }
+    #controls { position:fixed; bottom:20px; width:100%; text-align:center; }
+    #controls button { margin:0 10px; padding:10px 20px; border:none; border-radius:5px; background:#933b84; color:#fff; font-size:16px; cursor:pointer; }
   </style>
 </head>
 <body>
-  <div id="info-box">
-    <strong>Channel:</strong> <span id="channel-display"></span><br>
-    <strong>User:</strong> <span id="uid-display"></span>
+
+  <div id="info">
+    <strong>Channel:</strong> <span id="channel-span"></span><br/>
+    <strong>User ID:</strong> <span id="uid-span"></span>
   </div>
 
-  <div id="video-wrapper">
-    <div id="local-player"></div>
-    <div id="remote-player"></div>
+  <div id="videos">
+    <div id="local-player" class="player"></div>
+    <div id="remote-player" class="player"></div>
   </div>
 
   <div id="controls">
-    <button onclick="toggleMic()" id="mic-btn">Mute Mic</button>
-    <button onclick="toggleCam()" id="cam-btn">Turn Off Camera</button>
+    <button id="mic-btn">Mute Mic</button>
+    <button id="cam-btn">Turn Off Camera</button>
   </div>
 
   <script>
-    const appId = "9215eef13c1f4b8b88b20e217e027462";
-    const urlParams = new URLSearchParams(window.location.search);
-    const channel = urlParams.get("channel") || "sah_default";
-    const uid = urlParams.get("user") || Math.floor(Math.random() * 100000);
+    (async () => {
+      const APP_ID = "9215eef13c1f4b8b88b20e217e027462";
+      const params = new URLSearchParams(location.search);
+      const channel = params.get("channel") || "sah_default";
+      let uid = parseInt(params.get("uid"), 10);
+      if (isNaN(uid)) uid = Math.floor(Math.random()*1e6);
 
-    document.getElementById("channel-display").textContent = channel;
-    document.getElementById("uid-display").textContent = uid;
+      document.getElementById("channel-span").textContent = channel;
+      document.getElementById("uid-span").textContent = uid;
 
-    const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-    let localTracks = { videoTrack: null, audioTrack: null };
+      const client = AgoraRTC.createClient({ mode:"rtc", codec:"vp8" });
+      let [audioTrack, videoTrack] = [null, null];
 
-    async function startCall() {
-      await client.join(appId, channel, null, uid);
-      [localTracks.audioTrack, localTracks.videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+      // join & publish
+      await client.join(APP_ID, channel, null, uid);
+      [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+      videoTrack.play("local-player");
+      await client.publish([audioTrack, videoTrack]);
 
-      localTracks.videoTrack.play("local-player");
-      await client.publish(Object.values(localTracks));
-
+      // subscribe & play remote
       client.on("user-published", async (user, mediaType) => {
         await client.subscribe(user, mediaType);
-        if (mediaType === "video") {
-          user.videoTrack.play("remote-player");
-        }
-        if (mediaType === "audio") {
-          user.audioTrack.play();
-        }
+        if (mediaType === "video") user.videoTrack.play("remote-player");
+        if (mediaType === "audio") user.audioTrack.play();
       });
-
       client.on("user-unpublished", user => {
         document.getElementById("remote-player").innerHTML = "";
       });
-    }
 
-    function toggleMic() {
-      const btn = document.getElementById("mic-btn");
-      const enabled = localTracks.audioTrack.isEnabled;
-      localTracks.audioTrack.setEnabled(!enabled);
-      btn.innerText = enabled ? "Unmute Mic" : "Mute Mic";
-    }
+      // controls
+      document.getElementById("mic-btn").onclick = () => {
+        const en = audioTrack.isEnabled;
+        audioTrack.setEnabled(!en);
+        document.getElementById("mic-btn").textContent = en ? "Unmute Mic" : "Mute Mic";
+      };
+      document.getElementById("cam-btn").onclick = () => {
+        const en = videoTrack.isEnabled;
+        videoTrack.setEnabled(!en);
+        document.getElementById("cam-btn").textContent = en ? "Turn On Camera" : "Turn Off Camera";
+      };
 
-    function toggleCam() {
-      const btn = document.getElementById("cam-btn");
-      const enabled = localTracks.videoTrack.isEnabled;
-      localTracks.videoTrack.setEnabled(!enabled);
-      btn.innerText = enabled ? "Turn On Camera" : "Turn Off Camera";
-    }
-
-    window.addEventListener("beforeunload", async () => {
-      if (localTracks.videoTrack) localTracks.videoTrack.stop();
-      if (localTracks.audioTrack) localTracks.audioTrack.stop();
-      await client.leave();
-    });
-
-    startCall();
+      // cleanup on close
+      window.addEventListener("beforeunload", async () => {
+        videoTrack && videoTrack.stop();
+        audioTrack && audioTrack.stop();
+        await client.leave();
+      });
+    })();
   </script>
 </body>
 </html>
