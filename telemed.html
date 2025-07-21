@@ -4,20 +4,54 @@
   <title>SAH Video Call</title>
   <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
   <style>
-    body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
-    #video-container { flex: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; background: #f0f0f0; }
-    video { width: 45%; height: auto; margin: 1%; border-radius: 8px; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #video-container {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      background: #f0f0f0;
+      position: relative;
+    }
+    .video-box {
+      width: 45%;
+      height: 300px;
+      background: #000;
+      margin: 1%;
+      border-radius: 8px;
+      position: relative;
+    }
+    #waiting-message {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 14px;
+      z-index: 10;
+    }
   </style>
 </head>
 <body>
   <div id="video-container">
-    <div id="local-stream"></div>
-    <div id="remote-streams"></div>
+    <div id="waiting-message">Waiting for other participant to join...</div>
+    <div id="local-stream" class="video-box"></div>
+    <div id="remote-streams" class="video-box"></div>
   </div>
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const appId = '9215eef13c1f4b8b88b20e217e027462'; // Replace with your actual App ID
+    const appId = '9215eef13c1f4b8b88b20e217e027462';
     const channel = urlParams.get('channel') || 'test';
     const uid = urlParams.get('user') || null;
 
@@ -30,6 +64,7 @@
 
       const localContainer = document.createElement('div');
       localContainer.id = uid || 'local-user';
+      localContainer.className = 'video-box';
       document.getElementById('local-stream').appendChild(localContainer);
       localStream[1].play(localContainer.id);
 
@@ -40,18 +75,27 @@
         if (mediaType === 'video') {
           const remoteContainer = document.createElement('div');
           remoteContainer.id = `user-${user.uid}`;
+          remoteContainer.className = 'video-box';
+          document.getElementById('remote-streams').innerHTML = '';
           document.getElementById('remote-streams').appendChild(remoteContainer);
           user.videoTrack.play(remoteContainer);
+
+          // Hide waiting message
+          const waitingMsg = document.getElementById('waiting-message');
+          if (waitingMsg) waitingMsg.style.display = 'none';
         }
       });
 
       client.on('user-unpublished', user => {
         const remote = document.getElementById(`user-${user.uid}`);
         if (remote) remote.remove();
+
+        // Show waiting message again if no remote users
+        const waitingMsg = document.getElementById('waiting-message');
+        if (waitingMsg) waitingMsg.style.display = 'block';
       });
     }
 
     startCall();
   </script>
 </body>
-</html>
