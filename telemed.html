@@ -4,174 +4,97 @@
   <title>SAH Video Call</title>
   <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
   <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-      background: #f0f0f0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-
-    #info-panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(255,255,255,0.9);
-      padding: 10px 15px;
-      border-radius: 8px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    body { margin: 0; font-family: sans-serif; }
+    #info-box {
+      position: absolute; top: 10px; left: 10px;
+      background: #fff; padding: 10px; border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
       z-index: 10;
     }
-
-    #waiting-banner {
-      text-align: center;
-      padding: 10px;
-      background-color: #333;
-      color: white;
-      margin: 5px auto;
-      border-radius: 6px;
-      max-width: 400px;
+    #video-wrapper {
+      display: flex; flex-wrap: wrap;
+      justify-content: center; align-items: center;
+      height: 100vh; padding-top: 80px;
+      background: #f0f0f0;
     }
-
-    #video-container {
-      flex: 1;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      padding: 20px;
+    #local-player, #remote-player {
+      width: 45%; min-width: 300px; height: 240px;
+      background: #ccc; margin: 10px; border-radius: 8px;
     }
-
-    .video-box {
-      width: 45%;
-      background: black;
-      border-radius: 8px;
-      position: relative;
-    }
-
-    video {
-      width: 100%;
-      height: auto;
-      border-radius: 8px;
-    }
-
     #controls {
-      text-align: center;
-      padding: 15px;
-    }
-
-    button {
-      margin: 0 10px;
-      padding: 10px 20px;
-      border-radius: 5px;
-      border: none;
-      background: #4b6cb7;
-      color: white;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    button:hover {
-      background: #395591;
+      text-align: center; margin-top: 10px;
     }
   </style>
 </head>
 <body>
-
-  <div id="info-panel" style="display:none;">
-    <div><strong>Name:</strong> <span id="pt-name"></span></div>
-    <div><strong>NRIC:</strong> <span id="pt-nric"></span></div>
-    <div><strong>Gender:</strong> <span id="pt-gender"></span></div>
+  <div id="info-box">
+    <strong>Channel:</strong> <span id="channel-display"></span><br>
+    <strong>User:</strong> <span id="uid-display"></span>
   </div>
 
-  <div id="waiting-banner">Waiting for other participant to join...</div>
-
-  <div id="video-container">
-    <div class="video-box" id="local-stream"></div>
-    <div class="video-box" id="remote-streams"></div>
+  <div id="video-wrapper">
+    <div id="local-player"></div>
+    <div id="remote-player"></div>
   </div>
 
   <div id="controls">
-    <button onclick="toggleMic()">Mute Mic</button>
-    <button onclick="toggleCamera()">Turn Off Camera</button>
+    <button onclick="toggleMic()" id="mic-btn">Mute Mic</button>
+    <button onclick="toggleCam()" id="cam-btn">Turn Off Camera</button>
   </div>
 
   <script>
+    const appId = "9215eef13c1f4b8b88b20e217e027462";
     const urlParams = new URLSearchParams(window.location.search);
-    const appId = '9215eef13c1f4b8b88b20e217e027462';
-    const channel = urlParams.get('channel') || 'test';
-    const uid = urlParams.get('user') || null;
+    const channel = urlParams.get("channel") || "sah_default";
+    const uid = urlParams.get("user") || Math.floor(Math.random() * 100000);
 
-    // Parse JSON info if available
-    const name = urlParams.get('name');
-    const nric = urlParams.get('nric');
-    const gender = urlParams.get('gender');
+    document.getElementById("channel-display").textContent = channel;
+    document.getElementById("uid-display").textContent = uid;
 
-    if (name || nric || gender) {
-      document.getElementById('pt-name').textContent = name || '-';
-      document.getElementById('pt-nric').textContent = nric || '-';
-      document.getElementById('pt-gender').textContent = gender || '-';
-      document.getElementById('info-panel').style.display = 'block';
-    }
-
-    const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-    let localTracks = { audioTrack: null, videoTrack: null };
+    const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+    let localTracks = { videoTrack: null, audioTrack: null };
 
     async function startCall() {
       await client.join(appId, channel, null, uid);
       [localTracks.audioTrack, localTracks.videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
 
-      const localContainer = document.createElement('div');
-      localContainer.id = uid || 'local-user';
-      document.getElementById('local-stream').appendChild(localContainer);
-      await localTracks.videoTrack.play(localContainer);
+      localTracks.videoTrack.play("local-player");
       await client.publish(Object.values(localTracks));
 
-      client.on('user-published', async (user, mediaType) => {
+      client.on("user-published", async (user, mediaType) => {
         await client.subscribe(user, mediaType);
-        if (mediaType === 'video') {
-          document.getElementById('waiting-banner').style.display = 'none';
-          const remoteContainer = document.createElement('div');
-          remoteContainer.id = `user-${user.uid}`;
-          document.getElementById('remote-streams').appendChild(remoteContainer);
-          user.videoTrack.play(remoteContainer);
+        if (mediaType === "video") {
+          user.videoTrack.play("remote-player");
         }
-        if (mediaType === 'audio') {
+        if (mediaType === "audio") {
           user.audioTrack.play();
         }
       });
 
-      client.on('user-unpublished', user => {
-        const remote = document.getElementById(`user-${user.uid}`);
-        if (remote) remote.remove();
+      client.on("user-unpublished", user => {
+        document.getElementById("remote-player").innerHTML = "";
       });
     }
 
     function toggleMic() {
-      if (!localTracks.audioTrack) return;
-      const muted = localTracks.audioTrack.muted;
-      if (muted) {
-        localTracks.audioTrack.setMuted(false);
-        event.target.innerText = 'Mute Mic';
-      } else {
-        localTracks.audioTrack.setMuted(true);
-        event.target.innerText = 'Unmute Mic';
-      }
+      const btn = document.getElementById("mic-btn");
+      const enabled = localTracks.audioTrack.isEnabled;
+      localTracks.audioTrack.setEnabled(!enabled);
+      btn.innerText = enabled ? "Unmute Mic" : "Mute Mic";
     }
 
-    function toggleCamera() {
-      if (!localTracks.videoTrack) return;
-      const muted = localTracks.videoTrack.muted;
-      if (muted) {
-        localTracks.videoTrack.setMuted(false);
-        event.target.innerText = 'Turn Off Camera';
-      } else {
-        localTracks.videoTrack.setMuted(true);
-        event.target.innerText = 'Turn On Camera';
-      }
+    function toggleCam() {
+      const btn = document.getElementById("cam-btn");
+      const enabled = localTracks.videoTrack.isEnabled;
+      localTracks.videoTrack.setEnabled(!enabled);
+      btn.innerText = enabled ? "Turn On Camera" : "Turn Off Camera";
     }
+
+    window.addEventListener("beforeunload", async () => {
+      if (localTracks.videoTrack) localTracks.videoTrack.stop();
+      if (localTracks.audioTrack) localTracks.audioTrack.stop();
+      await client.leave();
+    });
 
     startCall();
   </script>
